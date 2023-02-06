@@ -13,6 +13,8 @@ const fs = require('fs');
 const fse = require('fs-extra');
 const _ = require('lodash');
 const { extension } = require('mime-types');
+const ffprobe = require('ffprobe');
+const ffprobeStatic = require('ffprobe-static')
 const {
   sanitize,
   nameToSlug,
@@ -80,6 +82,10 @@ module.exports = ({ strapi }) => ({
     const usedName = (fileInfo.name || filename).normalize();
     const basename = path.basename(usedName, ext);
 
+
+
+    console.log('fileInfo:', fileInfo);
+
     const entity = {
       name: usedName,
       alternativeText: fileInfo.alternativeText,
@@ -90,6 +96,14 @@ module.exports = ({ strapi }) => ({
       ext,
       mime: type,
       size: bytesToKbytes(size),
+      width: fileInfo.width,
+      height: fileInfo.height,
+      duration: fileInfo.duration,
+      sample_rate: fileInfo.sample_rate,
+      channels: fileInfo.channels,
+      frame_rate: fileInfo.frame_rate,
+      video_bitrate: fileInfo.video_bitrate,
+      audio_bitrate: fileInfo.audio_bitrate
     };
 
     const { refId, ref, field } = metas;
@@ -116,6 +130,22 @@ module.exports = ({ strapi }) => ({
   },
 
   async enhanceAndValidateFile(file, fileInfo = {}, metas = {}) {
+
+    console.log(file.path);
+    const extendedFileInfo = await ffprobe(file.path, { path: ffprobeStatic.path });
+    console.log(extendedFileInfo);
+    for (const stream of extendedFileInfo.streams) {
+      fileInfo.duration ||= stream?.duration;
+      fileInfo.sample_rate ||= stream?.sample_rate;
+      // fileInfo.bit_rate ||= stream?.bit_rate;
+      fileInfo.height ||= stream?.height;
+      fileInfo.width ||= stream?.width;
+      fileInfo.channels ||= stream?.channels;
+      fileInfo.audio_bitrate ||= stream?.codec_type === 'audio' ? stream?.bit_rate : undefined;
+      fileInfo.video_bitrate ||= stream?.codec_type === 'video' ? stream?.bit_rate : undefined;
+      fileInfo.frame_rate ||= stream?.avg_frame_rate.split('/')[0];
+    }
+
     const currentFile = await this.formatFileInfo(
       {
         filename: file.name,
@@ -182,7 +212,7 @@ module.exports = ({ strapi }) => ({
   },
 
   /**
-   * When uploading an image, an additional thumbnail is generated.
+   * When uploading an image, an additional thubmnail is generated.
    * Also, if there are responsive formats defined, another set of images will be generated too.
    *
    * @param {*} fileData
@@ -228,7 +258,6 @@ module.exports = ({ strapi }) => ({
       const formats = await generateResponsiveFormats(fileData);
       if (Array.isArray(formats) && formats.length > 0) {
         for (const format of formats) {
-          // eslint-disable-next-line no-continue
           if (!format) continue;
           uploadPromises.push(uploadResponsiveFormat(format));
         }
@@ -244,9 +273,8 @@ module.exports = ({ strapi }) => ({
    */
   async uploadFileAndPersist(fileData, { user } = {}) {
     const config = strapi.config.get('plugin.upload');
-    const { isImage } = getService('image-manipulation');
 
-    await getService('provider').checkFileSize(fileData);
+    const { isImage } = getService('image-manipulation');
 
     if (await isImage(fileData)) {
       await this.uploadImage(fileData);
