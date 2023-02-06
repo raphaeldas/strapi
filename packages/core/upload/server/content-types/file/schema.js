@@ -64,6 +64,36 @@ module.exports = {
       configurable: false,
       required: true,
     },
+    duration: {
+      type: 'decimal',
+      configurable: false,
+      required: false,
+    },
+    sample_rate: {
+      type: 'decimal',
+      configurable: false,
+      required: false
+    },
+    channels: {
+      type: 'decimal',
+      configurable: false,
+      required: false
+    },
+    frame_rate: {
+      type: 'decimal',
+      configurable: false,
+      required: false
+    },
+    video_bitrate: {
+      type: 'decimal',
+      configurable: false,
+      required: false
+    },
+    audio_bitrate: {
+      type: 'decimal',
+      configurable: false,
+      required: false
+    },
     url: {
       type: 'string',
       configurable: false,
